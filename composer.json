@@ -1,0 +1,15 @@
+{
+    "name": "iguoji/minimal-validate",
+    "description": "php http request validate",
+    "keywords": ["validate"],
+    "homepage": "https://github.com/iguoji/minimal-validate",
+    "require": {
+        "php": ">=8.0.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Minimal\\Validate\\": "src/"
+        }
+    },
+    "minimum-stability": "dev"
+}
