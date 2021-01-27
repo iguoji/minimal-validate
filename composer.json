@@ -1,5 +1,6 @@
 {
     "name": "iguoji/minimal-validate",
+    "type": "library",
     "description": "php http request validate",
     "keywords": ["validate"],
     "homepage": "https://github.com/iguoji/minimal-validate",

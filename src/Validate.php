@@ -12,32 +12,6 @@ use InvalidArgumentException;
 class Validate
 {
     /**
-     * 字段
-     */
-    protected array $fields = [];
-
-    /**
-     * 规则
-     */
-    protected array $rules = [];
-
-    /**
-     * 默认值
-     */
-    protected array $defaults = [];
-
-    /**
-     * 信息
-     */
-    protected array $messages = [
-        'required'  =>  '很抱歉、:attribute不能为空！',
-        'type'      =>  '很抱歉、:attribute必须是:type类型！',
-        'min'       =>  '很抱歉、:attribute:unit不能小于:condition！',
-        'max'       =>  '很抱歉、:attribute:unit不能大于:condition！',
-        'in'        =>  '很抱歉、:attribute只能在[:condition]之间！',
-    ];
-
-    /**
      * 请求对象
      */
     protected $req;
@@ -48,70 +22,150 @@ class Validate
     protected array $data = [];
 
     /**
-     * 检测数据
+     * 字段
+     * 数据库专用字段
      */
-    public function check(array $fields, array $parameter = []) : array
+    protected array $fields = [];
+
+    /**
+     * 参数
+     * 临时验证专用字段
+     */
+    protected array $params = [];
+
+    /**
+     * 默认值
+     */
+    protected array $defaults = [];
+
+    /**
+     * 错误信息
+     */
+    protected array $messages = [];
+
+    /**
+     * 内置错误信息
+     */
+    protected array $defaultMessages = [
+        'required'      =>  '很抱歉、:attribute不能为空！',
+        'type'          =>  '很抱歉、:attribute必须是:type类型！',
+        'confirm'       =>  '很抱歉、:attribute必须和:attribute2保持一致！',
+        'in'            =>  '很抱歉、:attribute只能在[:condition]之间！',
+        'length'        =>  '很抱歉、:attribute的长度只能在[:condition]之间！',
+        'alpha'         =>  '很抱歉、:attribute只能是纯字母！',
+        'alphaNum'      =>  '很抱歉、:attribute只能是字母和数字！',
+        'alphaDash'     =>  '很抱歉、:attribute只能是字母和数字，下划线_及破折号-！',
+        'chs'           =>  '很抱歉、:attribute只能是汉字！',
+        'chsAlpha'      =>  '很抱歉、:attribute只能是汉字、字母！',
+        'chsAlphaNum'   =>  '很抱歉、:attribute汉字、字母和数字！',
+        'chsDash'       =>  '很抱歉、:attribute只能是汉字、字母、数字和下划线_及破折号-',
+        'mobile'        =>  '很抱歉、:attribute格式不正确！',
+        'idCard'        =>  '很抱歉、:attribute格式不正确！',
+        'zip'           =>  '很抱歉、:attribute格式不正确！',
+    ];
+
+    /**
+     * 内置正则验证规则
+     * 取自ThinkPHP
+     */
+    protected $defaultRegex = [
+        'alpha'       => '/^[A-Za-z]+$/',
+        'alphaNum'    => '/^[A-Za-z0-9]+$/',
+        'alphaDash'   => '/^[A-Za-z0-9\-\_]+$/',
+        'chs'         => '/^[\x{4e00}-\x{9fa5}]+$/u',
+        'chsAlpha'    => '/^[\x{4e00}-\x{9fa5}a-zA-Z]+$/u',
+        'chsAlphaNum' => '/^[\x{4e00}-\x{9fa5}a-zA-Z0-9]+$/u',
+        'chsDash'     => '/^[\x{4e00}-\x{9fa5}a-zA-Z0-9\_\-]+$/u',
+        'mobile'      => '/^1[3-9]\d{9}$/',
+        'idCard'      => '/(^[1-9]\d{5}(18|19|([23]\d))\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{3}[0-9Xx]$)|(^[1-9]\d{5}\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{3}$)/',
+        'zip'         => '/\d{6}/',
+    ];
+
+    /**
+     * 检测数据
+     * @param $field array  字段规则列表：[字段1 => 额外规则,字段2 => 额外规则]
+     */
+    public function check(array $fields, array $parameters = []) : array
     {
         // 参数整理
-        $parameter = array_merge($this->getData(), $parameter);
-        // 最终数据
-        $data = [];
+        $data = array_merge($this->getData(), $parameters);
         // 循环字段
         foreach ($fields as $field => $ruleStr) {
-            // 没有额外的规则
+            // 可选参数，没有额外的规则
             if (is_int($field)) {
                 $field = $ruleStr;
                 $ruleStr = '';
             }
             // 参数的值
-            $value = $parameter[$field] ?? null;
-            // 是否必填
-            $isRequired = false;
-            // 是否使用默认值
-            $isDefault = false;
+            $value = $data[$field] ?? null;
+
             // 获取规则
             $rules = $this->getRules($field, $ruleStr);
-            // 验证类型
+            $ruleNames = array_column($rules, 0);
+
+            // echo PHP_EOL;
+            // echo PHP_EOL;
+            // echo PHP_EOL;
+            // echo $field . PHP_EOL;
+            // var_dump($rules);
+
+
+            // 是否必填
+            $isRequired = in_array('required', $ruleNames);
+            // 是否使用默认值
+            $isDefault = !$isRequired && !isset($data[$field]);
+
+            // 循环验证
             foreach ($rules as $rule) {
-                // 验证方法和参数
+
+                // 方法名称、即验证规则名
                 $method = array_shift($rule);
+                // 将值插入规则前面，方便直接给函数调用
                 array_unshift($rule, $value);
-                $args = $rule;
-                // 全局型规则处理
-                if ($method == 'required') {
-                    // 必填项
-                    $isRequired = true;
-                } else if ($method == 'default') {
-                    // 标记使用默认值
-                    $isDefault = true;
-                    // 用户没有提供值
-                    if (is_null($value)) {
-                        // 直接给与默认值
-                        $value = empty($args[1]) ? $this->getDefault($field) : $args[1][0];
-                    }
-                    continue;
+                // 参数列表、即验证参数表
+                $arguments = $rule;
+
+                // 比较函数
+                if ($method == 'confirm') {
+                    $arguments[] = $data;
                 }
-                // 不存在的规则
+
+                // 存在正则表达式、将方法名调整为正则
+                if (isset($this->defaultRegex[$method])) {
+                    $arguments[] = $this->defaultRegex[$method];
+                    $method = 'regex';
+                }
+
+                // 不存在指定的检查函数
                 if (!method_exists($this, $method)) {
                     throw new RuntimeException(sprintf('unknown validate rule "%s"', $method));
                 }
-                // 提供了值或是必填，但是规则验证又不通过
-                if ((!is_null($value) || $isRequired) && !$this->$method(...$args)) {
-                    $message = $this->getMessage($field, $method, $args);
+                // 执行检查，但是没通过
+                if ((!is_null($value) || $isRequired) && !$this->$method(...$arguments)) {
+                    $message = $this->getMessage($field, $method, $arguments);
                     throw new InvalidArgumentException($message);
                 }
-                // 如果执行了类型判断，则进行一次类型转换
-                if ($method == 'type' && !is_null($value)) {
-                    $value = $this->transform($value, $this->getType($field));
-                }
+            }
+
+            // 类型转换
+            if (!is_null($value)) {
+                $value = $this->transform($value, $this->getType($field));
             }
             // 保存数据
-            if ($isRequired || $isDefault || isset($parameter[$field])) {
-                $data[$field] = $value;
-            }
+            $data[$field] = $value;
         }
+
         // 返回数据
         return $data;
+    }
+
+    /**
+     * 过滤字段
+     * 只保留数据库中存在的字段
+     */
+    public function filter(array $data) : array
+    {
+        return array_intersect_key($data, $this->fields);
     }
 
     /**
@@ -125,6 +179,9 @@ class Validate
             case 'time':
                 return (int) $value;
                 break;
+            case 'float':
+                return (float) number_format($value, 4, '.', '');
+                break;
             case 'string':
                 return $value === 'null' ? null : (string) $value;
                 break;
@@ -132,6 +189,25 @@ class Validate
                 return $value;
                 break;
         }
+    }
+
+    /**
+     * 检查：正则表达式
+     */
+    public function regex(int|float|bool|string $value, string $rule): bool
+    {
+        if (isset($this->regex[$rule])) {
+            $rule = $this->regex[$rule];
+        } elseif (isset($this->defaultRegex[$rule])) {
+            $rule = $this->defaultRegex[$rule];
+        }
+
+        if (0 !== strpos($rule, '/') && !preg_match('/\/[imsU]{0,4}$/', $rule)) {
+            // 不是正则表达式则两端补上/
+            $rule = '/^' . $rule . '$/';
+        }
+
+        return is_scalar($value) && 1 === preg_match($rule, (string) $value);
     }
 
     /**
@@ -162,29 +238,51 @@ class Validate
     }
 
     /**
-     * 检查：最小长度|数值
+     * 检查：两个字段比较
      */
-    public function min(mixed $value, int $condition = 0) : bool
+    public function confirm(mixed $value, string $field, array $data) : bool
     {
-        if (is_int($value)) {
-            return $value >= $condition;
-        } else if (is_string($value)) {
-            return strlen($value) >= $condition;
-        }
-        return false;
+        return $value == ($data[$field] ?? null);
     }
 
     /**
-     * 检查：最大长度|数值
+     * 检查：必须小于数值
      */
-    public function max(mixed $value, int $condition = 0) : bool
+    public function lt(mixed $value, mixed $condition) : bool
     {
-        if (is_int($value)) {
-            return $value <= $condition;
-        } else if (is_string($value)) {
-            return strlen($value) <= $condition;
-        }
-        return false;
+        return $value < $condition;
+    }
+
+    /**
+     * 检查：必须小于等于数值
+     */
+    public function elt(mixed $value, mixed $condition) : bool
+    {
+        return $value <= $condition;
+    }
+
+    /**
+     * 检查：必须等于数值
+     */
+    public function eq(mixed $value, mixed $condition) : bool
+    {
+        return $value == $condition;
+    }
+
+    /**
+     * 检查：必须大于数值
+     */
+    public function gt(mixed $value, mixed $condition) : bool
+    {
+        return $value > $condition;
+    }
+
+    /**
+     * 检查：必须大于等于数值
+     */
+    public function egt(mixed $value, mixed $condition) : bool
+    {
+        return $value >= $condition;
     }
 
     /**
@@ -196,11 +294,33 @@ class Validate
     }
 
     /**
+     * 检查：字符串长度
+     */
+    public function length(mixed $value, int|string $min, int|string $max = null) : bool
+    {
+        $length = strlen((string) $value);
+        if (is_null($max)) {
+            return $length == $min;
+        } else {
+            return $length >= $min && $length <= $max;
+        }
+    }
+
+    /**
+     * 检查：日期格式
+     */
+    public function dateFormat(string $rule, string $value) : bool
+    {
+        $info = date_parse_from_format($rule, $value);
+        return 0 == $info['warning_count'] && 0 == $info['error_count'];
+    }
+
+    /**
      * 获取类型
      */
     public function getType(string $field) : string
     {
-        return $this->fields[$field]['type'] ?? 'string';
+        return $this->fields[$field]['type'] ?? $this->params[$field]['type'] ?? 'string';
     }
 
     /**
@@ -208,7 +328,7 @@ class Validate
      */
     public function hasType(string $field) : bool
     {
-        return isset($this->fields[$field]['type']);
+        return isset($this->fields[$field]['type']) || isset($this->params[$field]['type']);
     }
 
     /**
@@ -221,10 +341,18 @@ class Validate
         if (!strlen($str)) {
             return $rules;
         }
-        $arr = array_map(fn($s) => trim($s), explode('|', $str));
-        foreach ($arr as $str1) {
-            [$name, $argsStr] = strpos($str1, ':') ? explode(':', $str1) : [$str1, null];
-            $rules[] = [$name, is_null($argsStr) ? [] : array_map(fn($s) => trim($s), explode(',', $argsStr))];
+        // ['rule1', 'rule2:1,2', 'rule3:"a","b"']
+        $array = array_map(fn($s) => trim($s), explode('|', $str));
+
+        foreach ($array as $str1) {
+            // [ruleName, null]  || [ruleName, "1, 2"]  || [ruleName, "a", "b"]
+            [$name, $argsStr] = false !== strpos($str1, ':') ? explode(':', $str1) : [$str1, null];
+
+            $rule = [$name];
+            if (!is_null($argsStr)) {
+                $rule = array_merge($rule, array_map(fn($s) => trim($s), explode(',', $argsStr)));
+            }
+            $rules[] = $rule;
         }
         return $rules;
     }
@@ -234,29 +362,18 @@ class Validate
      */
     public function getRules(string $field, string $extraRuleStr = null) : array
     {
-        // 默认规则
-        $rules = [];
-        // 首先必须验证类型
+        // 额外规则
+        $rules = $this->parseRule($extraRuleStr);
+        // 验证类型
         if ($this->hasType($field)){
             $rules[] = ['type', $this->getType($field)];
         }
-        // 当前默认规则数组中的规则类型
-        $defaultRuleKeys = array_column($rules, 0, 0);
-        // 自定义或特殊规则
-        $extraRules = $this->parseRule($extraRuleStr);
-        foreach ($extraRules as $rule) {
-            if (!isset($defaultRuleKeys[$rule[0]])) {
-                $rules[] = $rule;
-            }
-        }
-        // 当前默认规则数组中的规则类型
-        $defaultRuleKeys = array_column($rules, 0, 0);
-        // 数据类型规则
-        foreach ($this->rules[$field] ?? [] as $name => $condition) {
-            if (!isset($defaultRuleKeys[$name])) {
-                $rules[] = [$name, $condition];
-            }
-        }
+        // 字段规则
+        $rules = array_merge(
+            $rules,
+            $this->parseRule($this->fields[$field]['rule'] ?? ''),
+            $this->parseRule($this->params[$field]['rule'] ?? ''),
+        );
         // 返回规则
         return $rules;
     }
@@ -290,9 +407,9 @@ class Validate
     /**
      * 获取备注
      */
-    public function getComment(string $field) : string
+    public function getName(string $field) : string
     {
-        return $this->fields[$field]['comment'] ?? $field;
+        return $this->fields[$field]['name'] ?? $this->params[$field]['name'] ?? $field;
     }
 
     /**
@@ -301,19 +418,56 @@ class Validate
     public function getMessage(string $field, string $rule, array $context = []) : string
     {
         // 上下文
-        $context['attribute'] = $this->getComment($field);
+        $context['condition'] = implode(' - ', array_filter(array_slice($context, 1), fn($item) => is_scalar($item)));
+        $context['attribute'] = $this->getName($field);
         $context['unit'] = $this->getType($field) == 'string' ? '长度' : '';
-        $context['condition'] = $context[1];
+
+        // 比较
+        if ($rule == 'confirm') {
+            $context['attribute2'] = $this->getName($context[1]);
+        }
+
+        // 类型调整
+        if ($rule == 'type') {
+            switch ($context[1]) {
+                case 'int':
+                case 'float':
+                    $context['type'] = '数字';
+                    break;
+            }
+        }
+
+        // 正则调整
+        if ($rule == 'regex') {
+            foreach ($this->defaultRegex as $k => $v) {
+                if ($v == $context[1]) {
+                    $rule = $k;
+                    break;
+                }
+            }
+        }
+
         // 默认消息
-        $message = 'verifier check ":attribute" failed';
+        $message = 'validate check ":attribute" failed in ' . $rule;
+
         // 字段规则
         $key = sprintf("%s.%s", $field, $rule);
+
         if (isset($this->messages[$key])) {
             $message = $this->messages[$key];
+
+        } else if (isset($this->defaultMessages[$key])) {
+            $message = $this->defaultMessages[$key];
+
         } else if (isset($this->messages[$rule])) {
             $key = $rule;
             $message = $this->messages[$rule];
+
+        } else if (isset($this->defaultMessages[$rule])) {
+            $key = $rule;
+            $message = $this->defaultMessages[$rule];
         }
+
         // 填充上下文
         $message = $this->interpolate($message, $context);
         // 返回消息
