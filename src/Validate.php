@@ -12,16 +12,6 @@ use InvalidArgumentException;
 class Validate
 {
     /**
-     * 请求对象
-     */
-    protected $req;
-
-    /**
-     * 数据
-     */
-    protected array $data = [];
-
-    /**
      * 字段
      * 数据库专用字段
      */
@@ -50,7 +40,13 @@ class Validate
         'required'      =>  '很抱歉、:attribute不能为空！',
         'type'          =>  '很抱歉、:attribute必须是:type类型！',
         'confirm'       =>  '很抱歉、:attribute必须和:attribute2保持一致！',
+        'lt'            =>  '很抱歉、:attribute必须小于:condition！',
+        'elt'           =>  '很抱歉、:attribute必须小于等于:condition！',
+        'eq'            =>  '很抱歉、:attribute必须等于:condition！',
+        'gt'            =>  '很抱歉、:attribute必须大于:condition！',
+        'egt'           =>  '很抱歉、:attribute必须大于等于:condition！',
         'in'            =>  '很抱歉、:attribute只能在[:condition]之间！',
+        'dateFormat'    =>  '很抱歉、:attribute的格式必须是[:condition]！',
         'length'        =>  '很抱歉、:attribute的长度只能在[:condition]之间！',
         'alpha'         =>  '很抱歉、:attribute只能是纯字母！',
         'alphaNum'      =>  '很抱歉、:attribute只能是字母和数字！',
@@ -88,7 +84,8 @@ class Validate
     public function check(array $fields, array $parameters = []) : array
     {
         // 参数整理
-        $data = array_merge($this->getData(), $parameters);
+        $data = [];
+
         // 循环字段
         foreach ($fields as $field => $ruleStr) {
             // 可选参数，没有额外的规则
@@ -97,23 +94,16 @@ class Validate
                 $ruleStr = '';
             }
             // 参数的值
-            $value = $data[$field] ?? null;
+            $value = $parameters[$field] ?? null;
 
             // 获取规则
             $rules = $this->getRules($field, $ruleStr);
             $ruleNames = array_column($rules, 0);
 
-            // echo PHP_EOL;
-            // echo PHP_EOL;
-            // echo PHP_EOL;
-            // echo $field . PHP_EOL;
-            // var_dump($rules);
-
-
             // 是否必填
             $isRequired = in_array('required', $ruleNames);
             // 是否使用默认值
-            $isDefault = !$isRequired && !isset($data[$field]);
+            $isDefault = !$isRequired && !isset($parameters[$field]);
 
             // 循环验证
             foreach ($rules as $rule) {
@@ -127,7 +117,7 @@ class Validate
 
                 // 比较函数
                 if ($method == 'confirm') {
-                    $arguments[] = $data;
+                    $arguments[] = $parameters;
                 }
 
                 // 存在正则表达式、将方法名调整为正则
@@ -151,21 +141,17 @@ class Validate
             if (!is_null($value)) {
                 $value = $this->transform($value, $this->getType($field));
             }
+            // 给与默认值
+            if ($isDefault && isset($this->defaults[$field])) {
+                $value = $this->getDefault($field);
+            }
+
             // 保存数据
             $data[$field] = $value;
         }
 
         // 返回数据
         return $data;
-    }
-
-    /**
-     * 过滤字段
-     * 只保留数据库中存在的字段
-     */
-    public function filter(array $data) : array
-    {
-        return array_intersect_key($data, $this->fields);
     }
 
     /**
@@ -180,7 +166,7 @@ class Validate
                 return (int) $value;
                 break;
             case 'float':
-                return (float) number_format($value, 4, '.', '');
+                return (float) number_format((float) $value, 4, '.', '');
                 break;
             case 'string':
                 return $value === 'null' ? null : (string) $value;
@@ -189,6 +175,17 @@ class Validate
                 return $value;
                 break;
         }
+    }
+
+    /**
+     * 类型转换、批量
+     */
+    public function transforms(array $data) : array
+    {
+        foreach ($data as $field => $value) {
+            $data[$field] = $this->transform($value, $this->getType($field));
+        }
+        return $data;
     }
 
     /**
@@ -288,7 +285,7 @@ class Validate
     /**
      * 检查：在指定范围内
      */
-    public function in(mixed $value, array $array) : bool
+    public function in(mixed $value, ...$array) : bool
     {
         return in_array($value, $array);
     }
@@ -309,7 +306,7 @@ class Validate
     /**
      * 检查：日期格式
      */
-    public function dateFormat(string $rule, string $value) : bool
+    public function dateFormat(string $value, string $rule) : bool
     {
         $info = date_parse_from_format($rule, $value);
         return 0 == $info['warning_count'] && 0 == $info['error_count'];
@@ -346,7 +343,7 @@ class Validate
 
         foreach ($array as $str1) {
             // [ruleName, null]  || [ruleName, "1, 2"]  || [ruleName, "a", "b"]
-            [$name, $argsStr] = false !== strpos($str1, ':') ? explode(':', $str1) : [$str1, null];
+            [$name, $argsStr] = false !== strpos($str1, ':') ? explode(':', $str1, 2) : [$str1, null];
 
             $rule = [$name];
             if (!is_null($argsStr)) {
@@ -431,6 +428,8 @@ class Validate
         if ($rule == 'type') {
             switch ($context[1]) {
                 case 'int':
+                    $context['type'] = '整数';
+                    break;
                 case 'float':
                     $context['type'] = '数字';
                     break;
@@ -472,40 +471,6 @@ class Validate
         $message = $this->interpolate($message, $context);
         // 返回消息
         return $message;
-    }
-
-    /**
-     * 设置请求
-     */
-    public function setRequest($req) : static
-    {
-        $this->req = $req;
-        return $this;
-    }
-
-    /**
-     * 获取请求
-     */
-    public function getRequest() : mixed
-    {
-        return $this->req;
-    }
-
-    /**
-     * 设置数据
-     */
-    public function setData(array $data) : static
-    {
-        $this->data = $data;
-        return $this;
-    }
-
-    /**
-     * 获取数据
-     */
-    public function getData() : array
-    {
-        return $this->data;
     }
 
     /**
