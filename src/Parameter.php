@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Minimal\Validate;
 
 use RuntimeException;
-use InvalidArgumentException;
 
 /**
  * 参数类
@@ -12,24 +11,9 @@ use InvalidArgumentException;
 class Parameter
 {
     /**
-     * 参数名称
+     * 默认值
      */
-    protected string $name;
-
-    /**
-     * 参数类型
-     */
-    protected ?string $type;
-
-    /**
-     * 参数备注
-     */
-    protected ?string $comment;
-
-    /**
-     * 数据字段
-     */
-    protected ?string $field;
+    protected mixed $defaultValue;
 
     /**
      * 绑定条件
@@ -38,157 +22,99 @@ class Parameter
 
     /**
      * 构造函数
+     * @param $name     string  名称
+     * @param $type     string  类型
+     * @param $comment  string  备注
+     * @param $field    string  对应数据库字段
      */
-    public function __construct(string $name, ?string $type = null, ?string $comment = null, ?string $field = null)
+    public function __construct(protected string $name, protected ?string $type = null, protected ?string $comment = null, protected ?string $field = null)
     {
-        $this->name = $name;
-        $this->type = $type;
-        $this->comment = $comment;
-        $this->field = $field;
+        // 默认必定验证类型
+        $this->type($type);
     }
 
     /**
-     * 设置名称
+     * 获取规则
      */
-    public function setName(string $str) : static
+    public function getRules() : array
     {
-        return $this;
+        return $this->bindings;
     }
 
     /**
-     * 设置类型
+     * 存在规则
      */
-    public function setType(string $str) : static
+    public function hasRule(string $ruleName) : bool
     {
-        return $this;
+        return isset($this->bindings[$ruleName]);
     }
 
     /**
-     * 设置字段
+     * 获取名称
      */
-    public function setField(string $str) : static
+    public function getName() : ?string
     {
-        return $this;
+        return $this->name;
     }
 
     /**
-     * 设置备注
+     * 获取类型
      */
-    public function setComment(string $str) : static
+    public function getType() : ?string
     {
-        return $this;
+        return $this->type;
     }
 
     /**
-     * 设置：默认值
+     * 获取备注
+     */
+    public function getComment() : ?string
+    {
+        return $this->comment;
+    }
+
+    /**
+     * 获取字段
+     */
+    public function getField() : ?string
+    {
+        return $this->field;
+    }
+
+    /**
+     * 存在默认值
+     */
+    public function hasDefaultValue() : mixed
+    {
+        return isset($this->defaultValue);
+    }
+
+    /**
+     * 获取默认值
+     */
+    public function getDefaultValue() : mixed
+    {
+        return $this->defaultValue;
+    }
+
+    /**
+     * 设置默认值
      */
     public function default(mixed $value) : static
     {
-        $this->bindings['default'] = $value;
+        $this->defaultValue = $value;
         return $this;
     }
 
     /**
-     * 类型：判断数据类型
+     * 绑定条件
      */
-    public function type(string $dataType) : static
+    public function __call(string $ruleName, array $ruleArguments) : ?static
     {
-        $this->bindings['type'] = $dataType;
-        return $this;
-    }
-
-    /**
-     * 检查：正则表达式
-     */
-    public function regex(string $exp) : static
-    {
-        $this->bindings['regex'] = $exp;
-        return $this;
-    }
-
-    /**
-     * 长度：字符长度在最小(含)和最大(含)之间
-     */
-    public function length(int $min, ?int $max = null) : static
-    {
-        $this->bindings['length'] = is_null($max) ? $min : [$min, $max];
-        return $this;
-    }
-
-    /**
-     * 区间：在最小(含)和最大(含)之间
-     */
-    public function between(int|float|string $min, int|float|string $max) : static
-    {
-        $this->bindings['between'] = [$min, $max];
-        return $this;
-    }
-
-    /**
-     * 范围：在若干个选项之间
-     */
-    public function in(array $haystack) : static
-    {
-        $this->bindings['in'] = $haystack;
-        return $this;
-    }
-
-    /**
-     * 比较：小于
-     */
-    public function lt(int|float|string $value) : static
-    {
-        $this->bindings['lt'] = $value;
-        return $this;
-    }
-
-    /**
-     * 比较：小于等于
-     */
-    public function elt(int|float|string $value) : static
-    {
-        $this->bindings['elt'] = $value;
-        return $this;
-    }
-
-    /**
-     * 比较：等于
-     */
-    public function eq(int|float|string $value) : static
-    {
-        $this->bindings['eq'] = $value;
-        return $this;
-    }
-
-    /**
-     * 比较：大于等于
-     */
-    public function egt(int|float|string $value) : static
-    {
-        $this->bindings['egt'] = $value;
-        return $this;
-    }
-
-    /**
-     * 比较：大于
-     */
-    public function gt(int|float|string $value) : static
-    {
-        $this->bindings['gt'] = $value;
-        return $this;
-    }
-
-    /**
-     * 数据调试
-     */
-    public function __debugInfo() : array
-    {
-        return [
-            'name'      =>  $this->name,
-            'type'      =>  $this->type,
-            'comment'   =>  $this->comment,
-            'field'     =>  $this->field,
-            'bindings'  =>  $this->bindings,
-        ];
+        if (method_exists(Validator::class, $ruleName)) {
+            $this->bindings[$ruleName] = $ruleArguments;
+            return $this;
+        }
+        throw new RuntimeException(sprintf('Call to undefined method %s::%s()', static::class, $ruleName));
     }
 }
