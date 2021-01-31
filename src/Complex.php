@@ -12,9 +12,9 @@ use InvalidArgumentException;
 class Complex
 {
     /**
-     * 高级组合变量名
+     * 类型标签
      */
-    protected string $variable = '_complex_';
+    protected array $typeLabels = ['int' => '整数', 'float' => '小数', 'array' => '数组', 'timestamp' => '日期时间'];
 
     /**
      * 参数列表
@@ -22,42 +22,74 @@ class Complex
     protected array $parameters = [];
 
     /**
-     * 排序字段
+     * 错误信息
      */
-    protected array $orders = [];
+    protected array $messages = [
+        'required'      =>  '很抱歉、:attribute不能为空！',
+        'type'          =>  '很抱歉、:attribute必须是:type类型！',
+        'confirm'       =>  '很抱歉、:attribute必须和:attribute2保持一致！',
 
-    /**
-     * 分页设置
-     */
-    protected array $page = [];
+        // 大小
+        'lt'            =>  '很抱歉、:attribute必须小于:condition！',
+        'elt'           =>  '很抱歉、:attribute必须小于等于:condition！',
+        'eq'            =>  '很抱歉、:attribute必须等于:condition！',
+        'gt'            =>  '很抱歉、:attribute必须大于:condition！',
+        'egt'           =>  '很抱歉、:attribute必须大于等于:condition！',
+
+        // 范围
+        'in'            =>  '很抱歉、:attribute只能在[:condition]之间！',
+
+        // 长度
+        'length'        =>  '很抱歉、:attribute的长度只能在[:condition]位之间！',
+        'length1'       =>  '很抱歉、:attribute的长度必须是[:condition]位！',
+
+        // 正则
+        'alpha'         =>  '很抱歉、:attribute只能是纯字母！',
+        'alphaNum'      =>  '很抱歉、:attribute只能是字母和数字！',
+        'alphaDash'     =>  '很抱歉、:attribute只能是字母和数字，下划线_及破折号-！',
+        'chs'           =>  '很抱歉、:attribute只能是汉字！',
+        'chsAlpha'      =>  '很抱歉、:attribute只能是汉字、字母！',
+        'chsAlphaNum'   =>  '很抱歉、:attribute汉字、字母和数字！',
+        'chsDash'       =>  '很抱歉、:attribute只能是汉字、字母、数字和下划线_及破折号-',
+        'mobile'        =>  '很抱歉、:attribute格式不正确！',
+        'idCard'        =>  '很抱歉、:attribute格式不正确！',
+        'zip'           =>  '很抱歉、:attribute格式不正确！',
+
+        // 数组
+        'size'          =>  '很抱歉、:attribute的元素数量只能在[:size]个之间',
+        'size1'         =>  '很抱歉、:attribute必须是:size个元素',
+        'valueType'     =>  '很抱歉、:attribute的元素类型必须在[:valueType]之间！',
+        'valueType1'    =>  '很抱歉、:attribute的元素类型必须是:valueType类型！',
+    ];
 
     /**
      * 构造函数
      * @param $structs  array   单个或多个数据表的字段信息
      * @param $tables   array   参数1存在多个表字段时，需要用到
      */
-    public function __construct(protected array $structs = [], protected array $tables = [])
+    public function __construct(protected array $structs = [], protected array $tables = [], array $messages = [])
     {
+        // 错误消息
+        $this->messages = array_merge($this->messages, $messages);
     }
 
     /**
      * 绑定参数
      */
-    public function bind(string $name, ?string $type = 'string', ?string $comment = null) : Parameter
+    public function bind(string $name, ?string $type = 'string', ?string $comment = null, ?string $field = null) : Parameter
     {
         if (func_num_args() == 1) {
             // 只有一个参数，属于数据库字段
-            [$field, $type, $comment] = $this->getField($name);
+            $field = $name;
+            [, $type, $comment] = $this->getField($name);
         } else if (func_num_args() == 2) {
             // 有两个参数，一个虚构名，一个数据库字段名
-            [$field, $type, $comment] = $this->getField($type);
-        } else {
-            // 多个参数，纯虚构，没有对应数据库字段
-            $field = null;
+            $field = $type;
+            [, $type, $comment] = $this->getField($type);
         }
 
         // 整理参数
-        $type = in_array($type, ['string', 'int', 'float', 'bool', 'array']) ? $type : 'string';
+        // $type = in_array($type, ['string', 'int', 'float', 'bool', 'array', 'timestamp']) ? $type : 'string';
         $comment = $comment ?: $name;
 
         // 返回结果
@@ -67,29 +99,29 @@ class Complex
     /**
      * 排序字段
      */
-    public function order(string $name, string $type = 'asc') : static
+    public function order(array $rules, string $field = 'order', string $comment = '排序字段') : static
     {
-        if (!isset($this->parameters[$name])) {
-            throw new InvalidArgumentException(sprintf('很抱歉、排序字段[%s]尚未绑定！', $name));
+        $keyAlias = [];
+        foreach ($rules as $key => $type) {
+            if (!isset($this->parameters[$key])) {
+                throw new InvalidArgumentException(sprintf('很抱歉、排序字段[%s]尚未绑定！', $key));
+            }
+            $keyAlias[$key] = $this->parameters[$key]->getField();
         }
-        if (!in_array($type, ['asc', 'desc'])) {
-            throw new InvalidArgumentException(sprintf('很抱歉、排序方式[%s]不存在！', $type));
-        }
-        $this->orders[$name] = $type;
-
-
-        // $param = $this->parameters['order'] ?? $this->bind('order', 'array', '排序字段');
-        // $param->key($name)->value()
-
+        $this->bind($field, 'array', $comment)
+            ->key(array_keys($rules))
+            ->alias($keyAlias)
+            ->value(['desc', 'asc'])
+            ->default($rules);
         return $this;
     }
 
     /**
      * 分页设置
      */
-    public function page(int $no, int $size) : static
+    public function page(int $no, int $size, string $field = 'page', string $comment = '分页字段') : static
     {
-        $this->page = [$no, $size];
+        $this->bind($field, 'array', $comment)->valueType('int')->default([$no, $size])->size(2);
         return $this;
     }
 
@@ -101,36 +133,25 @@ class Complex
         // 最终数据
         $data = [];
 
-        // 循环：预定参数
+        var_dump($userParams);
+
+        // 循环：预定参数 [必填|默认值]
         foreach ($this->parameters as $param) {
-            // 用户未提供值的参数
+            // 用户未提供
             if (!isset($userParams[$param->getName()])) {
-                // 必填参数 - 且 不存在默认值
-                if ($param->hasRule('required') && !$param->hasDefaultValue()) {
-                    throw new InvalidArgumentException(sprintf('很抱歉、%s必须提供！', $param->getComment()));
+                // 必填字段 | 且没默认值
+                if ($param->isRequired() && !$param->hasDefaultValue()) {
+                    throw new InvalidArgumentException(
+                        $this->getMessage($param->getName(), 'required', [], $userParams, [])
+                    );
                 }
-                // 给与默认值
+                // 赋与默认值
                 $userParams[$param->getName()] = $param->getDefaultValue();
-            }
-        }
-
-        // 高级组合
-        $complex = $userParams[$this->variable] ?? [];
-
-        // 循环：高级规则
-        foreach ($complex as $ruleName => $ruleArguments) {
-            if ($ruleName == 'order') {
-                // 排序规则
-                $complex[$ruleName] = array_filter($ruleArguments, fn($v, $k) => isset($this->orders[$k]) && in_array($v, ['desc', 'asc']), ARRAY_FILTER_USE_BOTH);
-            } else if ($ruleName == 'page') {
-                // 分页规则
-                if (!is_array($ruleArguments) || count($ruleArguments) != 2) {
-                    $ruleArguments = $this->page;
-                }
-                $complex[$ruleName] = array_slice(array_map( fn($v) => is_scalar($v) ? (int) $v : 0, $ruleArguments ), 0, 2);
-            } else if (!method_exists(Validator::class, $ruleName)) {
-                // 无效规则
-                unset($complex[$ruleName]);
+            } else {
+                // 参数为数组，合并默认值
+                // if ($param->getType() == 'array' && $param->hasDefaultValue() && is_array($userParams[$param->getName()])) {
+                //     $userParams[$param->getName()] = array_merge($param->getDefaultValue(), $userParams[$param->getName()]);
+                // }
             }
         }
 
@@ -140,52 +161,59 @@ class Complex
             if (!isset($this->parameters[$key])) {
                 continue;
             }
-            // 获取规则
-            $rules = $this->parameters[$key]->getRules();
-
-            echo PHP_EOL;
-            echo str_repeat('=', 30), PHP_EOL;
-            echo $key, PHP_EOL;
-            var_dump($value);
-
-            // 循环规则 -
-            foreach ($rules as $ruleName => $ruleArguments) {
-                // 存入高级组合
-                if (is_array($value)) {
-                    $complex[count($value) <= 2 ? 'between' : 'in'][$key] = $value;
+            // 对应参数
+            $param = $this->parameters[$key];
+            // 检查参数 [必填 或 提供了值]
+            if ($param->isRequired() || isset($value)) {
+                // 获取规则
+                $rules = $param->getRules();
+                echo PHP_EOL;
+                echo PHP_EOL;
+                echo PHP_EOL;
+                echo str_repeat('=', 30);
+                echo $key, PHP_EOL;
+                var_dump($value);
+                // 循环规则 -
+                foreach ($rules as $ruleName => $ruleArguments) {
+                    echo str_repeat('-', 30);
+                    echo $ruleName, PHP_EOL;
+                    var_dump($ruleArguments);
+                    // 根据需要传递上下文
+                    if (Validator::needContext($ruleName)) {
+                        $ruleArguments[] = $userParams;
+                        $ruleArguments[] = $data;
+                    }
+                    // 校验失败
+                    if (false === Validator::$ruleName($value, ...$ruleArguments)) {
+                        throw new InvalidArgumentException(
+                            $this->getMessage($key, $ruleName, $ruleArguments, $userParams, $data)
+                        );
+                    }
                 }
-                $complex[$ruleName][$key] = $value;
-
-
-                echo str_repeat('-', 30), PHP_EOL;
-                echo $ruleName, PHP_EOL;
-                var_dump($ruleArguments);
-
-                // 根据需要传递上下文
-                if (Validator::needContext($ruleName)) {
-                    $ruleArguments[] = $userParams;
-                    $ruleArguments[] = $data;
+                // 数组参数
+                if ($param->getType() == 'array' && is_array($value)) {
+                    // 别名处理
+                    $value = array_combine(array_map(fn($s) => $param->hasAlias($s) ? $param->getAlias($s) : $s, array_keys($value)), array_values($value));
                 }
-                // 校验失败
-                if (false === Validator::$ruleName($value, ...$ruleArguments)) {
-                    throw new RuntimeException(
-                        $this->getMessage($key, $ruleName, $ruleArguments, $userParams, $data)
-                    );
-                }
+                // 字段名称
+                $field = $param->getField() ?? $param->getName();
+                // 保存数据 - 同时转换类型
+                $data[$field] = $this->transform(
+                    $value,
+                    $param->getType() == 'array' && count($param->getValueTypes()) == 1
+                        ? $param->getValueTypes()[0]
+                        : $param->getType()
+                );
             }
-            // 保存数据 - 同时转换类型
-            $data[$key] = $this->transform($value, $this->parameters[$key]->getType());
         }
 
-        echo PHP_EOL;
-        echo PHP_EOL;
-        echo PHP_EOL;
-        echo PHP_EOL;
-        var_dump($complex);
+
         echo PHP_EOL;
         echo PHP_EOL;
         echo PHP_EOL;
 
+
+        var_dump($data);
 
         // 返回数据
         return $data;
@@ -231,12 +259,41 @@ class Complex
      */
     public function getMessage(string $name, string $ruleName, int|float|bool|string|array $ruleArguments, array $userParams, array $data) : string
     {
-        // 最终结果
-        $message = sprintf(
-            '很抱歉、参数[%s]验证失败, 规则[%s]%s',
-            $this->parameters[$name]->getComment(), $ruleName,
-            '[' . (is_array($ruleArguments) ? implode(',', $ruleArguments) : $ruleArguments) . ']',
-        );
+        // 正则表达式
+        if ($ruleName == 'regex' && isset($this->messages[$ruleArguments[0]])) {
+            $ruleName = $ruleArguments[0];
+        }
+        // 消息模板
+        $message = $this->messages["$name.$ruleName" . count($ruleArguments)]
+            ?? $this->messages["$name.$ruleName"]
+            ?? $this->messages[$ruleName . count($ruleArguments)]
+            ?? $this->messages[$ruleName]
+            ?? '很抱歉、参数[:attribute]验证失败！';
+        // 对应参数
+        $param = $this->parameters[$name];
+        echo PHP_EOL;
+        echo PHP_EOL;
+        echo PHP_EOL;
+        var_dump($ruleArguments);
+        // 解析模板
+        $message = strtr($message, [
+            // 类型
+            ':type'         =>  $this->typeLabels[$param->getType()] ?? $param->getType(),
+            // 属性1
+            ':attribute'    =>  $param->getComment(),
+            // 属性2
+            ':attribute2'   =>  isset($ruleArguments[0]) && is_string($ruleArguments[0]) && isset($this->parameters[$ruleArguments[0]])
+                                    ? $this->parameters[$ruleArguments[0]]->getComment()
+                                    : '相关字段',
+            // 条件
+            ':condition'    =>  implode(',', array_filter(array_values($ruleArguments), fn($v) => is_scalar($v))),
+            // 大小
+            ':size'         =>  $ruleArguments[0] ?? 0,
+            // 元素类型
+            ':valueType'    =>  isset($ruleArguments[0]) && is_array($ruleArguments[0])
+                                    ? implode(',', array_map(fn($s) => $this->typeLabels[$s] ?? $s, array_filter($ruleArguments[0], fn($v) => is_string($v))))
+                                    : '',
+        ]);
         // 返回结果
         return $message;
     }
@@ -264,6 +321,6 @@ class Complex
 
         // 返回结果
         $field = $this->structs[$table][$name]['fields'] ?? $this->structs['fields'][$name] ?? [];
-        return [$field['name'], $field['type'], $field['comment']];
+        return [$field['name'] ?? $name, $field['type'] ?? 'string', $field['comment'] ?? $name];
     }
 }

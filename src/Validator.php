@@ -44,9 +44,9 @@ class Validator
     /**
      * 检查：必填
      */
-    public static function required(mixed $value) : bool
+    public static function required(mixed $value, bool $isRequire) : bool
     {
-        return isset($value);
+        return !$isRequire || ($isRequire && isset($value));
     }
 
     /**
@@ -78,6 +78,9 @@ class Validator
             case 'array':
                 return is_array($value);
                 break;
+            case 'timestamp':
+                return self::date($value, 'Y-m-d H:i:s');
+                break;
             default:
                 return true;
                 break;
@@ -97,11 +100,73 @@ class Validator
     }
 
     /**
+     * 数组：检查索引
+     */
+    public static function key(int|string|array $value, mixed $rule) : bool
+    {
+        if (is_array($value)) {
+            $value = array_keys($value)[0];
+        }
+        if (is_callable($rule)) {
+            return $rule($value);
+        } else if (is_array($rule)) {
+            return in_array($value, $rule);
+        } else {
+            return true;
+        }
+    }
+
+    /**
+     * 数组：检查元素
+     */
+    public static function value(mixed $value, mixed $rule) : bool
+    {
+        if (is_array($value)) {
+            $value = array_values($value)[0];
+        }
+        if (is_callable($rule)) {
+            return $rule($value);
+        } else if (is_array($rule)) {
+            return in_array($value, $rule);
+        } else {
+            return true;
+        }
+    }
+
+    /**
+     * 数组：元素数量
+     */
+    public static function size(array $value, int $min, ?int $max = null) : bool
+    {
+        $size = count($value);
+        if (is_null($max)) {
+            return $size == $min;
+        } else {
+            return $size >= $min && $size <= $max;
+        }
+    }
+
+    /**
+     * 数组：元素类型
+     */
+    public static function valueType(array $array, array $types) : bool
+    {
+        foreach ($array as $value) {
+            foreach ($types as $type) {
+                if (!self::type($value, $type)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
      * 长度：字符长度在最小(含)和最大(含)之间
      */
     public static function length(int|float|string $value, int $min, ?int $max = null) : bool
     {
-        $length = strlen((string) $value);
+        $length = mb_strlen((string) $value);
         if (is_null($max)) {
             return $length == $min;
         } else {
@@ -184,12 +249,6 @@ class Validator
             }
             return true;
         }
-        echo PHP_EOL;
-        echo PHP_EOL;
-        var_dump($format);
-        var_dump($value);
-        echo PHP_EOL;
-        echo PHP_EOL;
         $info = date_parse_from_format($format, $value);
         return 0 == $info['warning_count'] && 0 == $info['error_count'];
     }
@@ -199,6 +258,6 @@ class Validator
      */
     public static function confirm(mixed $value, string $name, array $userParams, array $data) : bool
     {
-        return isset(self::$userParams[$name]) && $value == self::$userParams[$name];
+        return isset($userParams[$name]) && $value == $userParams[$name];
     }
 }
