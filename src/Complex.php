@@ -133,7 +133,7 @@ class Complex
         // 最终数据
         $data = [];
 
-        var_dump($userParams);
+        // var_dump($userParams);
 
         // 循环：预定参数 [必填|默认值]
         foreach ($this->parameters as $param) {
@@ -167,17 +167,17 @@ class Complex
             if ($param->isRequired() || isset($value)) {
                 // 获取规则
                 $rules = $param->getRules();
-                echo PHP_EOL;
-                echo PHP_EOL;
-                echo PHP_EOL;
-                echo str_repeat('=', 30);
-                echo $key, PHP_EOL;
-                var_dump($value);
+                // echo PHP_EOL;
+                // echo PHP_EOL;
+                // echo PHP_EOL;
+                // echo str_repeat('=', 30);
+                // echo $key, PHP_EOL;
+                // var_dump($value);
                 // 循环规则 -
                 foreach ($rules as $ruleName => $ruleArguments) {
-                    echo str_repeat('-', 30);
-                    echo $ruleName, PHP_EOL;
-                    var_dump($ruleArguments);
+                    // echo str_repeat('-', 30);
+                    // echo $ruleName, PHP_EOL;
+                    // var_dump($ruleArguments);
                     // 根据需要传递上下文
                     if (Validator::needContext($ruleName)) {
                         $ruleArguments[] = $userParams;
@@ -207,13 +207,10 @@ class Complex
             }
         }
 
-
-        echo PHP_EOL;
-        echo PHP_EOL;
-        echo PHP_EOL;
-
-
-        var_dump($data);
+        // echo PHP_EOL;
+        // echo PHP_EOL;
+        // echo PHP_EOL;
+        // var_dump($data);
 
         // 返回数据
         return $data;
@@ -271,10 +268,10 @@ class Complex
             ?? '很抱歉、参数[:attribute]验证失败！';
         // 对应参数
         $param = $this->parameters[$name];
-        echo PHP_EOL;
-        echo PHP_EOL;
-        echo PHP_EOL;
-        var_dump($ruleArguments);
+        // echo PHP_EOL;
+        // echo PHP_EOL;
+        // echo PHP_EOL;
+        // var_dump($ruleArguments);
         // 解析模板
         $message = strtr($message, [
             // 类型
@@ -320,7 +317,7 @@ class Complex
         }
 
         // 返回结果
-        $field = $this->structs[$table][$name]['fields'] ?? $this->structs['fields'][$name] ?? [];
+        $field = $this->structs[$table]['fields'][$name] ?? $this->structs['fields'][$name] ?? [];
         return [$field['name'] ?? $name, $field['type'] ?? 'string', $field['comment'] ?? $name];
     }
 }
