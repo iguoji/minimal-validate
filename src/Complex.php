@@ -63,6 +63,11 @@ class Complex
     ];
 
     /**
+     * 需要上下文的验证方法
+     */
+    protected array $needContext = ['confirm'];
+
+    /**
      * 构造函数
      * @param $structs  array   单个或多个数据表的字段信息
      * @param $tables   array   参数1存在多个表字段时，需要用到
@@ -179,7 +184,7 @@ class Complex
                     // echo $ruleName, PHP_EOL;
                     // var_dump($ruleArguments);
                     // 根据需要传递上下文
-                    if (Validator::needContext($ruleName)) {
+                    if (in_array($ruleName, $this->needContext)) {
                         $ruleArguments[] = $userParams;
                         $ruleArguments[] = $data;
                     }
@@ -198,7 +203,7 @@ class Complex
                 // 字段名称
                 $field = $param->getField() ?? $param->getName();
                 // 保存数据 - 同时转换类型
-                $data[$field] = $this->transform(
+                $data[$field] = Validate::transform(
                     $value,
                     $param->getType() == 'array' && count($param->getValueTypes()) == 1
                         ? $param->getValueTypes()[0]
@@ -214,41 +219,6 @@ class Complex
 
         // 返回数据
         return $data;
-    }
-
-    /**
-     * 类型转换
-     */
-    public function transform(mixed $value, string $type) : mixed
-    {
-        if (is_array($value) && in_array($type, ['int', 'float', 'bool', 'string'])) {
-            $data = [];
-            foreach ($value as $v) {
-                $data[] = $this->transform($v, $type);
-            }
-            return $data;
-        }
-        switch($type)
-        {
-            case 'int':
-            case 'time':
-                return (int) $value;
-                break;
-            case 'float':
-                return (float) number_format((float) $value, 4, '.', '');
-                break;
-            case 'bool':
-                if ($value == 'false') return false;
-                if ($value == 'true') return true;
-                return (bool) $value;
-                break;
-            case 'string':
-                return $value === 'null' ? null : (string) $value;
-                break;
-            default:
-                return $value;
-                break;
-        }
     }
 
     /**

@@ -10,11 +10,6 @@ namespace Minimal\Validate;
 class Validator
 {
     /**
-     * 需要上下文的函数
-     */
-    protected static $needContext = ['confirm'];
-
-    /**
      * 内置正则验证规则
      * 取自ThinkPHP
      */
@@ -32,14 +27,6 @@ class Validator
         'idCard'      => '/(^[1-9]\d{5}(18|19|([23]\d))\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{3}[0-9Xx]$)|(^[1-9]\d{5}\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{3}$)/',
         'zip'         => '/\d{6}/',
     ];
-
-    /**
-     * 是否需要上下文
-     */
-    public static function needContext(string $ruleName) : bool
-    {
-        return in_array($ruleName, self::$needContext);
-    }
 
     /**
      * 检查：必填
