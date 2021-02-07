@@ -5,6 +5,7 @@ namespace Minimal\Validate;
 
 use RuntimeException;
 use InvalidArgumentException;
+use Minimal\Support\Type;
 
 /**
  * 复杂验证类
@@ -203,7 +204,7 @@ class Complex
                 // 字段名称
                 $field = $param->getField() ?? $param->getName();
                 // 保存数据 - 同时转换类型
-                $data[$field] = Validate::transform(
+                $data[$field] = Type::transform(
                     $value,
                     $param->getType() == 'array' && count($param->getValueTypes()) == 1
                         ? $param->getValueTypes()[0]

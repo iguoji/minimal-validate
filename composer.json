@@ -5,7 +5,8 @@
     "keywords": ["validate"],
     "homepage": "https://github.com/iguoji/minimal-validate",
     "require": {
-        "php": ">=8.0.0"
+        "php": ">=8.0.0",
+        "iguoji/minimal-support": "dev-master"
     },
     "autoload": {
         "psr-4": {
