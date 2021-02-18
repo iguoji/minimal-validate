@@ -4,6 +4,7 @@
     "description": "php http request validate",
     "keywords": ["validate"],
     "homepage": "https://github.com/iguoji/minimal-validate",
+    "license": "Apache-2.0",
     "require": {
         "php": ">=8.0.0",
         "iguoji/minimal-support": "dev-master"
